@@ -50,7 +50,7 @@ type config struct {
 	maxraftstate int
 	testNum      int32 // for two-minute timeout
 	// begin()/end() statistics
-	t0    time.Time // time at which test_test.go called cfg.begin()
+	t0    time.Time
 	rpcs0 int       // rpcTotal() at start of test
 	ops   int32     // number of clerk get/put/append method calls
 }
