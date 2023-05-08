@@ -14,8 +14,9 @@
 # Output of the go coverage tool, specifically when used with LiteIDE
 *.out
 
-# Dependency directories (remove the comment below to include it)
-# vendor/
+# IDE
+.vscode/
 
-# Go workspace file
+# Go files
 go.work
+go.mod
