@@ -19,37 +19,37 @@ var mu sync.Mutex
 var errorCount int // for TestCapital
 var checked map[reflect.Type]bool
 
-type LabEncoder struct {
+type Encoder struct {
 	gob *gob.Encoder
 }
 
-func NewEncoder(w io.Writer) *LabEncoder {
-	enc := &LabEncoder{}
+func NewEncoder(w io.Writer) *Encoder {
+	enc := &Encoder{}
 	enc.gob = gob.NewEncoder(w)
 	return enc
 }
 
-func (enc *LabEncoder) Encode(e interface{}) error {
+func (enc *Encoder) Encode(e interface{}) error {
 	checkValue(e)
 	return enc.gob.Encode(e)
 }
 
-func (enc *LabEncoder) EncodeValue(value reflect.Value) error {
+func (enc *Encoder) EncodeValue(value reflect.Value) error {
 	checkValue(value.Interface())
 	return enc.gob.EncodeValue(value)
 }
 
-type LabDecoder struct {
+type Decoder struct {
 	gob *gob.Decoder
 }
 
-func NewDecoder(r io.Reader) *LabDecoder {
-	dec := &LabDecoder{}
+func NewDecoder(r io.Reader) *Decoder {
+	dec := &Decoder{}
 	dec.gob = gob.NewDecoder(r)
 	return dec
 }
 
-func (dec *LabDecoder) Decode(e interface{}) error {
+func (dec *Decoder) Decode(e interface{}) error {
 	checkValue(e)
 	checkDefault(e)
 	return dec.gob.Decode(e)

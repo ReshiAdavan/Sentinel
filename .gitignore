@@ -20,3 +20,8 @@
 # Go files
 go.work
 go.mod
+
+raft/test_test.go
+rpc/test_test.go
+gobWrapper/test_test.go
+kvraft/test_test.go
