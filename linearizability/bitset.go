@@ -69,6 +69,6 @@ func (b bitset) equals(b2 bitset) bool {
 		if b[i] != b2[i] {
 			return false
 		}
-	}
+	}	
 	return true
 }
