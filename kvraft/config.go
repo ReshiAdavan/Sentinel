@@ -19,6 +19,7 @@ import (
 	"github.com/ReshiAdavan/Sentinel/raft"
 )
 
+// randstring generates a random string of a specified length.
 func randstring(n int) string {
 	b := make([]byte, 2*n)
 	crand.Read(b)
@@ -26,7 +27,7 @@ func randstring(n int) string {
 	return s[0:n]
 }
 
-// Randomize server handles
+// random_handles shuffles the server handles for load balancing or test randomness.
 func random_handles(kvh []*rpc.ClientEnd) []*rpc.ClientEnd {
 	sa := make([]*rpc.ClientEnd, len(kvh))
 	copy(sa, kvh)
@@ -37,6 +38,7 @@ func random_handles(kvh []*rpc.ClientEnd) []*rpc.ClientEnd {
 	return sa
 }
 
+// config holds the configuration for a set of raft servers and clients for testing.
 type config struct {
 	mu           sync.Mutex
 	t            *testing.T
@@ -55,6 +57,7 @@ type config struct {
 	ops   int32     // number of clerk get/put/append method calls
 }
 
+// cleanup terminates all the servers in the configuration.
 func (cfg *config) cleanup() {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
@@ -65,7 +68,7 @@ func (cfg *config) cleanup() {
 	}
 }
 
-// Maximum log size across all servers
+// LogSize calculates the maximum log size across all servers.
 func (cfg *config) LogSize() int {
 	logsize := 0
 	for i := 0; i < cfg.n; i++ {
@@ -77,7 +80,7 @@ func (cfg *config) LogSize() int {
 	return logsize
 }
 
-// Maximum snapshot size across all servers
+// SnapshotSize calculates the maximum snapshot size across all servers.
 func (cfg *config) SnapshotSize() int {
 	snapshotsize := 0
 	for i := 0; i < cfg.n; i++ {
@@ -89,10 +92,7 @@ func (cfg *config) SnapshotSize() int {
 	return snapshotsize
 }
 
-/* 
- * Attach server i to servers listed in to caller must hold cfg.mu
- */ 
-
+// connectUnlocked connects server i to the servers listed in `to`. Caller must hold cfg.mu.
 func (cfg *config) connectUnlocked(i int, to []int) {
 	// log.Printf("connect peer %d to %v\n", i, to)
 
@@ -115,10 +115,7 @@ func (cfg *config) connect(i int, to []int) {
 	cfg.connectUnlocked(i, to)
 }
 
-/* 
- * Detach server i from the servers listed in from caller must hold cfg.mu
- */ 
-
+// disconnectUnlocked disconnects server i from the servers listed in `from`. Caller must hold cfg.mu.
 func (cfg *config) disconnectUnlocked(i int, from []int) {
 	// log.Printf("disconnect peer %d from %v\n", i, from)
 
@@ -145,6 +142,7 @@ func (cfg *config) disconnect(i int, from []int) {
 	cfg.disconnectUnlocked(i, from)
 }
 
+// All returns a slice of all server indices.
 func (cfg *config) All() []int {
 	all := make([]int, cfg.n)
 	for i := 0; i < cfg.n; i++ {
@@ -153,6 +151,7 @@ func (cfg *config) All() []int {
 	return all
 }
 
+// ConnectAll connects all servers in the configuration.
 func (cfg *config) ConnectAll() {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
@@ -161,7 +160,7 @@ func (cfg *config) ConnectAll() {
 	}
 }
 
-// Sets up 2 partitions with connectivity between servers in each  partition.
+// partition sets up 2 partitions with connectivity between servers in each partition.
 func (cfg *config) partition(p1 []int, p2 []int) {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
@@ -176,10 +175,7 @@ func (cfg *config) partition(p1 []int, p2 []int) {
 	}
 }
 
-/* 
- * Create a clerk with clerk specific server names. 
- * Give it connections to all of the servers, but for now enable only connections to servers in to[].
- */ 
+// makeClient creates a clerk with specific server names and connections.
 func (cfg *config) makeClient(to []int) *Clerk {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
@@ -211,7 +207,7 @@ func (cfg *config) deleteClient(ck *Clerk) {
 	delete(cfg.clerks, ck)
 }
 
-// caller should hold cfg.mu
+// ConnectClientUnlocked connects a client to specified servers. Caller should hold cfg.mu.
 func (cfg *config) ConnectClientUnlocked(ck *Clerk, to []int) {
 	// log.Printf("ConnectClient %v to %v\n", ck, to)
 	endnames := cfg.clerks[ck]
@@ -221,13 +217,14 @@ func (cfg *config) ConnectClientUnlocked(ck *Clerk, to []int) {
 	}
 }
 
+// ConnectClient wraps ConnectClientUnlocked with mutex locking.
 func (cfg *config) ConnectClient(ck *Clerk, to []int) {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 	cfg.ConnectClientUnlocked(ck, to)
 }
 
-// caller should hold cfg.mu
+// DisconnectClientUnlocked disconnects a client from specified servers. Caller should hold cfg.mu.
 func (cfg *config) DisconnectClientUnlocked(ck *Clerk, from []int) {
 	// log.Printf("DisconnectClient %v from %v\n", ck, from)
 	endnames := cfg.clerks[ck]
@@ -237,13 +234,14 @@ func (cfg *config) DisconnectClientUnlocked(ck *Clerk, from []int) {
 	}
 }
 
+// DisconnectClient wraps DisconnectClientUnlocked with mutex locking.
 func (cfg *config) DisconnectClient(ck *Clerk, from []int) {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
 	cfg.DisconnectClientUnlocked(ck, from)
 }
 
-// Shutdown a server by isolating it
+// ShutdownServer isolates and shuts down a specified server.
 func (cfg *config) ShutdownServer(i int) {
 	cfg.mu.Lock()
 	defer cfg.mu.Unlock()
@@ -327,7 +325,7 @@ func (cfg *config) Leader() (bool, int) {
 	return false, 0
 }
 
-// Partition servers into 2 groups and put current leader in minority
+// make_partition partitions the servers, ensuring the current leader is in the minority.
 func (cfg *config) make_partition() ([]int, []int) {
 	_, l := cfg.Leader()
 	p1 := make([]int, cfg.n/2+1)
@@ -379,15 +377,12 @@ func make_config(t *testing.T, n int, unreliable bool, maxraftstate int) *config
 	return cfg
 }
 
+// rpcTotal returns the total number of RPC calls made.
 func (cfg *config) rpcTotal() int {
 	return cfg.net.GetTotalCount()
 }
 
-/* 
- * Start a Test. 
- * Print the Test message.
- */ 
-
+// begin starts a test and prints the test message.
 func (cfg *config) begin(description string) {
 	fmt.Printf("%s ...\n", description)
 	cfg.t0 = time.Now()
@@ -404,15 +399,12 @@ func (cfg *config) begin(description string) {
 	}()
 }
 
+// op records an operation performed by a clerk.
 func (cfg *config) op() {
 	atomic.AddInt32(&cfg.ops, 1)
 }
 
-/*
- * End a Test -- the fact that we got here means there was no failure.
- * Print the Passed message, and some performance numbers.
- */ 
- 
+// end concludes a test, prints performance numbers, and checks for timeouts.
 func (cfg *config) end() {
 	atomic.AddInt32(&cfg.testNum, 1) // suppress two-minute timeout
 
