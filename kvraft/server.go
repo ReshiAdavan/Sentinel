@@ -11,8 +11,10 @@ import (
 	"github.com/ReshiAdavan/Sentinel/rpc"
 )
 
+// Debug level constant.
 const Debug = 1
 
+// DPrintf is a debugging print function that only prints if Debug is set.
 func DPrintf(format string, a ...interface{}) (n int, err error) {
 	if Debug > 0 {
 		log.Printf(format, a...)
@@ -20,42 +22,41 @@ func DPrintf(format string, a ...interface{}) (n int, err error) {
 	return
 }
 
+// Op represents an operation in the key-value store.
 type Op struct {
-	Command   string // "get" | "put" | "append"
-	ClientId  int64
-	RequestId int64
-	Key       string
-	Value     string
+	Command   string // "get", "put", or "append"
+	ClientId  int64  // Client identifier
+	RequestId int64  // Request identifier
+	Key       string // Key in the key-value store
+	Value     string // Value to be put or appended
 }
 
+// Result represents the result of an operation.
 type Result struct {
-	Command     string
-	OK          bool
-	ClientId    int64
-	RequestId   int64
-	WrongLeader bool
-	Err         Err
-	Value       string
+	Command     string // Operation command
+	OK          bool   // True if operation was successful
+	ClientId    int64  // Client identifier
+	RequestId   int64  // Request identifier
+	WrongLeader bool   // True if the operation was sent to a non-leader server
+	Err         Err    // Error state
+	Value       string // Value retrieved in a get operation
 }
 
+// KVServer is the main key-value server structure.
 type KVServer struct {
-	mu      sync.Mutex
-	me      int
-	rf      *raft.Raft
-	applyCh chan raft.ApplyMsg
+	mu           sync.Mutex        // Mutex for protecting concurrent access
+	me           int               // Server index
+	rf           *raft.Raft        // Raft instance
+	applyCh      chan raft.ApplyMsg // Channel for apply messages from Raft
 
-	maxraftstate int // snapshot if log grows this big
+	maxraftstate int // Maximum raft state size before snapshotting
 
-	data     map[string]string   // key-value data
-	ack      map[int64]int64     // client's latest request id (for deduplication)
-	resultCh map[int]chan Result // log index to result of applying that entry
+	data     map[string]string   // Key-value data store
+	ack      map[int64]int64     // Map of client's latest request id for deduplication
+	resultCh map[int]chan Result // Map of log index to result channel
 }
 
-/*
-* Try to append the entry to raft servers' log and return result.
-* Result is valid if raft servers apply this entry before timeout.
-*/
-
+// appendEntryToLog tries to append an entry to the Raft log and returns the result.
 func (kv *KVServer) appendEntryToLog(entry Op) Result {
 	index, _, isLeader := kv.rf.Start(entry)
 	if !isLeader {
@@ -79,14 +80,12 @@ func (kv *KVServer) appendEntryToLog(entry Op) Result {
 	}
 }
 
-/*
- * Check if the result corresponds to the log entry.
- */
-
+// isMatch checks if a log entry matches a result.
 func isMatch(entry Op, result Result) bool {
 	return entry.ClientId == result.ClientId && entry.RequestId == result.RequestId
 }
 
+// Get handles a get request from a client.
 func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	entry := Op{}
 	entry.Command = "get"
@@ -104,6 +103,7 @@ func (kv *KVServer) Get(args *GetArgs, reply *GetReply) {
 	reply.Value = result.Value
 }
 
+// PutAppend handles put or append requests from a client.
 func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	entry := Op{}
 	entry.Command = args.Command
@@ -121,10 +121,7 @@ func (kv *KVServer) PutAppend(args *PutAppendArgs, reply *PutAppendReply) {
 	reply.Err = result.Err
 }
 
-/*
- * Apply operation on database and return result.
- */
-
+// applyOp applies an operation to the key-value store and returns the result.
 func (kv *KVServer) applyOp(op Op) Result {
 	result := Result{}
 	result.Command = op.Command
@@ -156,10 +153,7 @@ func (kv *KVServer) applyOp(op Op) Result {
 	return result
 }
 
-/*
- * Check if the request is duplicated with request id.
- */
- 
+// isDuplicated checks if a request is a duplicate based on the request id.
 func (kv *KVServer) isDuplicated(op Op) bool {
 	lastRequestId, ok := kv.ack[op.ClientId]
 	if ok {
@@ -168,10 +162,12 @@ func (kv *KVServer) isDuplicated(op Op) bool {
 	return false
 }
 
+// Kill stops the KVServer.
 func (kv *KVServer) Kill() {
 	kv.rf.Kill()
 }
 
+// Run is the main loop of the KVServer, applying committed Raft entries.
 func (kv *KVServer) Run() {
 	for {
 		msg := <-kv.applyCh
