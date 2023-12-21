@@ -46,22 +46,25 @@ import (
 	"github.com/ReshiAdavan/Sentinel/gobWrapper"
 )
 
+// reqMsg represents a request message in the RPC system.
 type reqMsg struct {
-	endname  interface{} // name of sending ClientEnd
-	svcMeth  string      // e.g. "Raft.AppendEntries"
-	argsType reflect.Type
-	args     []byte
-	replyCh  chan replyMsg
+	endname  interface{}   // Name of sending ClientEnd
+	svcMeth  string        // e.g., "Raft.AppendEntries"
+	argsType reflect.Type  // Reflect type of the arguments
+	args     []byte        // Arguments of the RPC, encoded as bytes
+	replyCh  chan replyMsg // Channel for receiving the reply
 }
 
+// replyMsg represents a reply message in the RPC system.
 type replyMsg struct {
-	ok    bool
-	reply []byte
+	ok    bool   // True if the server executed the request
+	reply []byte // Reply of the RPC, encoded as bytes
 }
 
+// ClientEnd represents the client end of an RPC connection.
 type ClientEnd struct {
-	endname interface{} // this end-point's name
-	ch      chan reqMsg // copy of Network.endCh
+	endname interface{} // This end-point's name
+	ch      chan reqMsg // Channel to send requests
 }
 
 /* 
@@ -96,6 +99,7 @@ func (e *ClientEnd) Call(svcMeth string, args interface{}, reply interface{}) bo
 	}
 }
 
+// Network simulates a network for RPC communication.
 type Network struct {
 	mu             sync.Mutex
 	reliable       bool
@@ -106,7 +110,7 @@ type Network struct {
 	servers        map[interface{}]*Server     // servers, by name
 	connections    map[interface{}]interface{} // endname -> servername
 	endCh          chan reqMsg
-	count          int32 // total RPC count, for statistics
+	count          int32 // Total RPC count for statistics
 }
 
 func MakeNetwork() *Network {
