@@ -1,9 +1,5 @@
 package raft
 
-/*
- * Support for Raft tester.
- */
-
 import (
 	"log"
 	"runtime"
@@ -19,6 +15,7 @@ import (
 	"time"
 )
 
+// randstring generates a random string of a specified length.
 func randstring(n int) string {
 	b := make([]byte, 2*n)
 	crand.Read(b)
@@ -26,6 +23,7 @@ func randstring(n int) string {
 	return s[0:n]
 }
 
+// config is a structure used to hold the configuration of the raft test environment.
 type config struct {
 	mu        sync.Mutex
 	t         *testing.T
@@ -48,6 +46,7 @@ type config struct {
 
 var ncpu_once sync.Once
 
+// make_config sets up the raft test configuration.
 func make_config(t *testing.T, n int, unreliable bool) *config {
 	ncpu_once.Do(func() {
 		if runtime.NumCPU() < 2 {
@@ -213,7 +212,7 @@ func (cfg *config) cleanup() {
 	}
 }
 
-// attach server i to the net.
+// connect attaches a server to the network.
 func (cfg *config) connect(i int) {
 	// fmt.Printf("connect(%d)\n", i)
 
@@ -259,27 +258,27 @@ func (cfg *config) disconnect(i int) {
 	}
 }
 
+// rpcCount returns the number of RPCs sent by a specific server.
 func (cfg *config) rpcCount(server int) int {
 	return cfg.net.GetCount(server)
 }
 
+// rpcTotal returns the total number of RPCs sent by all servers.
 func (cfg *config) rpcTotal() int {
 	return cfg.net.GetTotalCount()
 }
 
+// setunreliable configures the network reliability.
 func (cfg *config) setunreliable(unrel bool) {
 	cfg.net.Reliable(!unrel)
 }
 
+// setlongreordering configures long message reordering in the network.
 func (cfg *config) setlongreordering(longrel bool) {
 	cfg.net.LongReordering(longrel)
 }
 
-/*
- * Check that there's exactly one leader. 
- * Try a few times in case re-elections are needed.
- */
-
+// checkOneLeader ensures there is exactly one leader among the raft servers.
 func (cfg *config) checkOneLeader() int {
 	for iters := 0; iters < 10; iters++ {
 		time.Sleep(500 * time.Millisecond)
@@ -326,7 +325,7 @@ func (cfg *config) checkTerms() int {
 	return term
 }
 
-// check that there's no leader
+// checkNoLeader ensures there are no leaders among the raft servers.
 func (cfg *config) checkNoLeader() {
 	for i := 0; i < cfg.n; i++ {
 		if cfg.connected[i] {
@@ -338,7 +337,7 @@ func (cfg *config) checkNoLeader() {
 	}
 }
 
-// how many servers think a log entry is committed?
+// nCommitted counts how many servers have committed a particular log entry.
 func (cfg *config) nCommitted(index int) (int, interface{}) {
 	count := 0
 	cmd := -1
@@ -363,11 +362,7 @@ func (cfg *config) nCommitted(index int) (int, interface{}) {
 	return count, cmd
 }
 
-/* 
- * Wait for at least n servers to commit.
- * But don't wait forever.
- */
-
+// wait waits for a log entry to be committed on a certain number of servers.
 func (cfg *config) wait(index int, n int, startTerm int) interface{} {
 	to := 10 * time.Millisecond
 	for iters := 0; iters < 30; iters++ {
@@ -457,10 +452,7 @@ func (cfg *config) one(cmd int, expectedServers int, retry bool) int {
 	return -1
 }
 
-/* 
- * Start a Test.
- * Print the Test message.
- */
+// begin marks the start of a test.
 func (cfg *config) begin(description string) {
 	fmt.Printf("%s ...\n", description)
 	cfg.t0 = time.Now()
@@ -478,11 +470,7 @@ func (cfg *config) begin(description string) {
 	}()
 }
 
-/* 
- * End a Test -- the fact that we got here means there was no failure.
- * Print the Passed message, and some performance numbers.
- */ 
- 
+// end marks the end of a test and prints out statistics.
 func (cfg *config) end() {
 	atomic.AddInt32(&cfg.testNum, 1) // suppress two-minute timeout
 
