@@ -6,56 +6,53 @@ import (
 	"time"
 )
 
+// Define the type for specifying the kind of entry in history.
 type entryKind bool
 
+// Constants for differentiating call and return entries.
 const (
 	callEntry   entryKind = false
 	returnEntry           = true
 )
 
+// entry represents a single operation (call or return) in the history.
 type entry struct {
 	kind  entryKind
-	value interface{}
-	id    uint
-	time  int64
+	value interface{} // Value associated with the operation.
+	id    uint        // Unique identifier for the operation.
+	time  int64       // Timestamp of the operation.
 }
 
+// byTime implements sort.Interface for sorting entries by their timestamp.
 type byTime []entry
 
-func (a byTime) Len() int {
-	return len(a)
-}
+func (a byTime) Len() int           { return len(a) }
+func (a byTime) Swap(i, j int)      { a[i], a[j] = a[j], a[i] }
+func (a byTime) Less(i, j int) bool { return a[i].time < a[j].time }
 
-func (a byTime) Swap(i, j int) {
-	a[i], a[j] = a[j], a[i]
-}
-
-func (a byTime) Less(i, j int) bool {
-	return a[i].time < a[j].time
-}
-
+// makeEntries converts a slice of Operations to a slice of entries, sorted by time.
 func makeEntries(history []Operation) []entry {
-	var entries []entry = nil
+	var entries []entry
 	id := uint(0)
 	for _, elem := range history {
-		entries = append(entries, entry{
-			callEntry, elem.Input, id, elem.Call})
-		entries = append(entries, entry{
-			returnEntry, elem.Output, id, elem.Return})
+		entries = append(entries, entry{callEntry, elem.Input, id, elem.Call})
+		entries = append(entries, entry{returnEntry, elem.Output, id, elem.Return})
 		id++
 	}
 	sort.Sort(byTime(entries))
 	return entries
 }
 
+// node represents a node in a doubly linked list of entries.
 type node struct {
-	value interface{}
-	match *node // call if match is nil, otherwise return
-	id    uint
-	next  *node
-	prev  *node
+	value interface{} // Value associated with the node.
+	match *node       // Corresponding call/return node. For call entries, match is nil.
+	id    uint        // Unique identifier for the operation.
+	next  *node       // Next node in the list.
+	prev  *node       // Previous node in the list.
 }
 
+// insertBefore inserts a new node before the 'mark' node in the list.
 func insertBefore(n *node, mark *node) *node {
 	if mark != nil {
 		beforeMark := mark.prev
@@ -69,6 +66,7 @@ func insertBefore(n *node, mark *node) *node {
 	return n
 }
 
+// length calculates the length of the linked list starting from 'n'.
 func length(n *node) uint {
 	l := uint(0)
 	for n != nil {
@@ -78,9 +76,10 @@ func length(n *node) uint {
 	return l
 }
 
+// renumber reassigns unique identifiers to events in the history.
 func renumber(events []Event) []Event {
 	var e []Event
-	m := make(map[uint]uint) // renumbering
+	m := make(map[uint]uint) // Map for renumbering.
 	id := uint(0)
 	for _, v := range events {
 		if r, ok := m[v.Id]; ok {
@@ -94,6 +93,7 @@ func renumber(events []Event) []Event {
 	return e
 }
 
+// convertEntries converts a slice of Events to a slice of entries.
 func convertEntries(events []Event) []entry {
 	var entries []entry
 	for _, elem := range events {
@@ -106,9 +106,10 @@ func convertEntries(events []Event) []entry {
 	return entries
 }
 
+// makeLinkedEntries creates a doubly linked list of entries from a slice of entries.
 func makeLinkedEntries(entries []entry) *node {
 	var root *node = nil
-	match := make(map[uint]*node)
+	match := make(map[uint]*node) // Map to track corresponding call/return nodes.
 	for i := len(entries) - 1; i >= 0; i-- {
 		elem := entries[i]
 		if elem.kind {
@@ -125,11 +126,13 @@ func makeLinkedEntries(entries []entry) *node {
 	return root
 }
 
+// cacheEntry is used for caching the states encountered during the linearization check.
 type cacheEntry struct {
-	linearized bitset
-	state      interface{}
+	linearized bitset      // Bitset representing the linearized operations.
+	state      interface{} // State of the model after these operations.
 }
 
+// cacheContains checks if a given cache entry is already in the cache.
 func cacheContains(model Model, cache map[uint64][]cacheEntry, entry cacheEntry) bool {
 	for _, elem := range cache[entry.linearized.hash()] {
 		if entry.linearized.equals(elem.linearized) && model.Equal(entry.state, elem.state) {
@@ -139,11 +142,13 @@ func cacheContains(model Model, cache map[uint64][]cacheEntry, entry cacheEntry)
 	return false
 }
 
+// callsEntry represents an entry in the list of ongoing calls.
 type callsEntry struct {
 	entry *node
-	state interface{}
+	state interface{} // Model state after the call.
 }
 
+// lift removes an entry and its match from the linked list.
 func lift(entry *node) {
 	entry.prev.next = entry.next
 	entry.next.prev = entry.prev
@@ -154,6 +159,7 @@ func lift(entry *node) {
 	}
 }
 
+// unlift re-inserts an entry and its match back into the linked list.
 func unlift(entry *node) {
 	match := entry.match
 	match.prev.next = match
@@ -164,6 +170,7 @@ func unlift(entry *node) {
 	entry.next.prev = entry
 }
 
+// checkSingle checks if a single partition of the history is linearizable.
 func checkSingle(model Model, subhistory *node, kill *int32) bool {
 	n := length(subhistory) / 2
 	linearized := newBitset(n)
@@ -213,6 +220,7 @@ func checkSingle(model Model, subhistory *node, kill *int32) bool {
 	return true
 }
 
+// fillDefault fills in default implementations for missing methods in the model.
 func fillDefault(model Model) Model {
 	if model.Partition == nil {
 		model.Partition = NoPartition
@@ -226,14 +234,12 @@ func fillDefault(model Model) Model {
 	return model
 }
 
+// CheckOperations checks if the operations in the history are linearizable.
 func CheckOperations(model Model, history []Operation) bool {
 	return CheckOperationsTimeout(model, history, 0)
 }
 
-/* 
- * Timeout = 0 means no timeout if this operation times out, then a false positive is possible
- */ 
-
+// CheckOperationsTimeout checks if the operations in the history are linearizable with a timeout.
 func CheckOperationsTimeout(model Model, history []Operation, timeout time.Duration) bool {
 	model = fillDefault(model)
 	partitions := model.Partition(history)
@@ -271,14 +277,12 @@ loop:
 	return ok
 }
 
+// CheckEvents checks if the events in the history are linearizable.
 func CheckEvents(model Model, history []Event) bool {
 	return CheckEventsTimeout(model, history, 0)
 }
 
-/* 
- * timeout = 0 means no timeout if this operation times out, then a false positive is possible
- */ 
- 
+// CheckEventsTimeout checks if the events in the history are linearizable with a timeout.
 func CheckEventsTimeout(model Model, history []Event, timeout time.Duration) bool {
 	model = fillDefault(model)
 	partitions := model.PartitionEvent(history)
