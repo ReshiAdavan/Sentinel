@@ -1,6 +1,6 @@
 # Sentinel
 
-&nbsp;&nbsp;&nbsp;&nbsp; A distributed key-value cache, similar in architecture to Redis, DynamoDB, etc., built in golang and using RAFT consensus.
+&nbsp;&nbsp;&nbsp;&nbsp; A distributed key-value storage, similar in architecture to Redis, DynamoDB, etc., built in golang and using RAFT consensus.
 
 ### Inspiration
 
